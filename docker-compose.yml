@@ -1,0 +1,173 @@
+version: '3.8'
+
+services:
+  zookeeper:
+    image: bitnami/zookeeper:latest
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+
+  kafka:
+    build:
+      context: .
+      dockerfile: Dockerfile.kafka
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      - KAFKA_BROKER_ID=1
+      - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
+      - KAFKA_LISTENERS=PLAINTEXT://:9092
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
+      - ALLOW_PLAINTEXT_LISTENER=yes
+    volumes:
+      - ./kafka-codes:/app/scripts
+      - /usr/bin/python3:/usr/bin/python3  # Mounting Python
+      - /usr/local/bin/pip3:/usr/local/bin/pip3
+  # Flink JobManager
+  jobmanager:
+    image: ghcr.io/lakehq/flink:1.19.0-python3.11
+    container_name: jobmanager
+    ports:
+      - "8081:8081"
+    command: jobmanager
+    volumes:
+      - ./jobs:/opt/flink/usrlib
+      - hadoop_etc:/opt/hadoop/etc/hadoop
+      - hadoop_libs:/opt/hadoop/share/hadoop
+      - ./jobs/flink-shaded-hadoop-3-uber-3.1.1.7.2.8.0-224-9.0.jar:/opt/flink/lib/flink-shaded-hadoop-3-uber-3.1.1.7.2.8.0-224-9.0.jar
+      - ./jobs/flink-connector-kafka-3.3.0-1.19.jar:/opt/flink/lib/flink-sql-connector-kafka-3.3.0-1.19.jar
+      - ./jobs/flink-sql-connector-kafka-3.3.0-1.19.jar:/opt/flink/lib/flink-sql-connector-kafka-3.3.0-1.19.jar
+      - ./flink-conf/config.yaml:/opt/flink/conf/config.yaml
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: jobmanager
+        taskmanager.numberOfTaskSlots: 2
+      - PYTHON_EXEC=/usr/bin/python3
+      - HADOOP_CONF_DIR=/opt/hadoop/etc/hadoop
+      - FLINK_CLASSPATH=/opt/hadoop/share/hadoop/common/*:/opt/hadoop/share/hadoop/hdfs/*:/opt/flink/lib/flink-connector-files-1.19.0.jar:/opt/flink/lib/flink-shaded-hadoop-3-uber-3.1.1.7.2.8.0-224-9.0.jar
+      - HADOOP_CLASSPATH=$(find /opt/hadoop/share/hadoop -name '*.jar' | tr '\n' ':')$(find /opt/flink/lib -name '*.jar' | tr '\n' ':')
+
+  # Flink TaskManager
+  taskmanager:
+    image: ghcr.io/lakehq/flink:1.19.0-python3.11
+    container_name: taskmanager
+    depends_on:
+      - jobmanager
+    command: taskmanager
+    volumes:
+      - ./jobs:/opt/flink/usrlib
+      - hadoop_etc:/opt/hadoop/etc/hadoop
+      - hadoop_libs:/opt/hadoop/share/hadoop 
+      - ./jobs/flink-shaded-hadoop-3-uber-3.1.1.7.2.8.0-224-9.0.jar:/opt/flink/lib/flink-shaded-hadoop-3-uber-3.1.1.7.2.8.0-224-9.0.jar
+      - ./jobs/flink-connector-kafka-3.3.0-1.19.jar:/opt/flink/lib/flink-sql-connector-kafka-3.3.0-1.19.jar
+      - ./jobs/flink-sql-connector-kafka-3.3.0-1.19.jar:/opt/flink/lib/flink-sql-connector-kafka-3.3.0-1.19.jar
+      - ./flink-conf/config.yaml:/opt/flink/conf/config.yaml
+
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: jobmanager
+        taskmanager.numberOfTaskSlots: 2
+      - PYTHON_EXEC=/usr/bin/python3
+      - HADOOP_CONF_DIR=/opt/hadoop/etc/hadoop
+      - FLINK_CLASSPATH=/opt/hadoop/share/hadoop/common/*:/opt/hadoop/share/hadoop/hdfs/*:/opt/flink/lib/flink-connector-files-1.19.0.jar:/opt/flink/lib/flink-shaded-hadoop-3-uber-3.1.1.7.2.8.0-224-9.0.jar
+      - HADOOP_CLASSPATH=$(find /opt/hadoop/share/hadoop -name '*.jar' | tr '\n' ':')$(find /opt/flink/lib -name '*.jar' | tr '\n' ':')
+
+
+  # Jupyter with PyFlink
+  jupyter:
+    build:
+      context: .
+      dockerfile: Dockerfile.jupyter
+    image: jupyter:1.19.0
+    container_name: jupyter
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./jobs:/home/jovyan/jobs
+      - ./jobs:/opt/flink/usrlib
+      - hadoop_etc:/opt/hadoop/etc/hadoop
+      - hadoop_libs:/opt/hadoop/share/hadoop 
+      - ./jobs/flink-shaded-hadoop-3-uber-3.1.1.7.2.8.0-224-9.0.jar:/opt/flink/lib/flink-shaded-hadoop-3-uber-3.1.1.7.2.8.0-224-9.0.jar
+      - ./flink-conf/config.yaml:/opt/flink/conf/config.yaml
+      - ./jobs/flink-connector-files-1.19.0.jar:/opt/flink/lib/flink-connector-files-1.19.0.jar  
+    environment:
+      - HADOOP_CONF_DIR=/opt/hadoop/etc/hadoop  
+      - FLINK_CLASSPATH=/opt/hadoop/share/hadoop/common/*:/opt/hadoop/share/hadoop/hdfs/*:/opt/flink/lib/flink-connector-files-1.19.0.jar:/opt/flink/lib/flink-shaded-hadoop-3-uber-3.1.1.7.2.8.0-224-9.0.jar 
+      - HADOOP_CLASSPATH=$(find /opt/hadoop/share/hadoop -name '*.jar' | tr '\n' ':')$(find /opt/flink/lib -name '*.jar' | tr '\n' ':')
+    depends_on:
+      - jobmanager
+
+  # Hadoop Namenode
+  namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: namenode
+    restart: always
+    ports:
+      - 9870:9870
+      - 9000:9000
+    volumes:
+      - hadoop_namenode:/hadoop/dfs/name
+      - hadoop_etc:/opt/hadoop-3.2.1/etc/hadoop
+      - hadoop_libs:/opt/hadoop-3.2.1/share/hadoop
+    environment:
+      - CLUSTER_NAME=test
+    env_file:
+      - ./hadoop.env
+
+  # Hadoop Datanode
+  datanode:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode
+    restart: always
+    volumes:
+      - hadoop_datanode:/hadoop/dfs/data
+    environment:
+      SERVICE_PRECONDITION: "namenode:9870"
+    env_file:
+      - ./hadoop.env
+
+  # Hadoop ResourceManager
+  resourcemanager:
+    image: bde2020/hadoop-resourcemanager:2.0.0-hadoop3.2.1-java8
+    container_name: resourcemanager
+    restart: always
+    environment:
+      SERVICE_PRECONDITION: "namenode:9000 namenode:9870 datanode:9864"
+    env_file:
+      - ./hadoop.env
+
+  # Hadoop NodeManager
+  nodemanager1:
+    image: bde2020/hadoop-nodemanager:2.0.0-hadoop3.2.1-java8
+    container_name: nodemanager
+    restart: always
+    environment:
+      SERVICE_PRECONDITION: "namenode:9000 namenode:9870 datanode:9864 resourcemanager:8088"
+    env_file:
+      - ./hadoop.env
+
+  # Hadoop HistoryServer
+  # historyserver:
+  #   image: bde2020/hadoop-historyserver:2.0.0-hadoop3.2.1-java8
+  #   container_name: historyserver
+  #   restart: always
+  #   environment:
+  #     SERVICE_PRECONDITION: "namenode:9000 namenode:9870 datanode:9864 resourcemanager:8088"
+  #   volumes:
+  #     - hadoop_historyserver:/hadoop/yarn/timeline
+  #   env_file:
+  #     - ./hadoop.env
+
+volumes:
+  hadoop_namenode:
+  hadoop_datanode:
+  hadoop_historyserver:
+  hadoop_etc:
+  hadoop_libs:
