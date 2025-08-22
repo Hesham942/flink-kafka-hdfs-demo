@@ -13,10 +13,10 @@ Inside the **`flink-conf/config.yaml`** file, the following lines have been adde
 ```yaml
 fs:
   hdfs:
-    hadoop-conf: /opt/hadoop/etc/hadoop
+    hadoop-conf-dir: /opt/hadoop/etc/hadoop
 ```
 
-This tells Flink exactly where to find the Hadoop configuration files (`core-site.xml`, `hdfs-site.xml`) inside the container. By doing this, Flink automatically knows how to connect to the HDFS NameNode, removing the need to set environment variables like `HADOOP_CONF_DIR` for every job submission.
+This tells Flink exactly where to find the Hadoop configuration files (`core-site.xml`, `hdfs-site.xml`) inside the container. By doing this, Flink automatically knows how to connect to the HDFS NameNode.
 
 ---
 
@@ -39,27 +39,14 @@ Before running the project, you must download the required Flink connector JAR f
         * **File:** `flink-connector-files-1.19.0.jar`
         * **Download Link:** [Maven Central](https://repo.maven.apache.org/maven2/org/apache/flink/flink-connector-files/1.19.0/flink-connector-files-1.19.0.jar)
 
-After downloading, your `./jobs` directory should look something like this:
-```
-/proj
-|-- /jobs
-|   |-- flink-sql-connector-kafka-3.3.0-1.19.jar
-|   |-- flink-shaded-hadoop-3-uber-....jar
-|   |-- flink-connector-files-1.19.0.jar
-|   |-- kafka_to_hdfs_job.py
-|   |-- ...
-|-- docker-compose.yml
-|-- ...
-```
-
 ---
 
-## How to Run
+## How to Run 🚀
 1.  **Start the environment:**
     ```bash
     docker-compose up -d
     ```
-2.  **Run the Kafka producer:**
+2.  **Run the Kafka producer to generate data:**
     ```bash
     docker-compose exec kafka python3 /app/scripts/producer.py
     ```
@@ -67,3 +54,27 @@ After downloading, your `./jobs` directory should look something like this:
     ```bash
     docker-compose exec jobmanager flink run /opt/flink/usrlib/kafka_to_hdfs_job.py
     ```
+4.  **Monitor the job in the Flink UI.** You can watch the job's progress at **http://localhost:8081**. The dashboard will look like this as it runs:
+    
+    
+---
+
+## Verifying the Output ✅
+
+As it is a Streaming Flink job it's status will be `Running`, But you can verify that the data was written to HDFS using one of two methods:
+
+#### 1. **Using the NameNode Web UI**
+You can browse the HDFS file system visually through the Hadoop NameNode web interface.
+* **URL:** **http://localhost:9870**
+* **Navigation:** Go to `Utilities` -> `Browse the file system` and navigate to the `/flink-output-kafka` directory to see the output files.
+
+#### 2. **Using the Command Line**
+Execute the following command in your terminal to view the content of the output files directly. Note that the exact subdirectory name may vary.
+
+```bash
+# First, list the files to see the full path
+docker-compose exec namenode hdfs dfs -ls -R /flink-output-kafka/
+
+# Then, view the content of a specific file (path may vary)
+docker-compose exec namenode hdfs dfs -cat /flink-output-kafka/2025-08-22--13/.data*
+```
