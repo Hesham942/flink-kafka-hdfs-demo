@@ -80,30 +80,7 @@ services:
       - HADOOP_CLASSPATH=$(find /opt/hadoop/share/hadoop -name '*.jar' | tr '\n' ':')$(find /opt/flink/lib -name '*.jar' | tr '\n' ':')
 
 
-  # Jupyter with PyFlink
-  jupyter:
-    build:
-      context: .
-      dockerfile: Dockerfile.jupyter
-    image: jupyter:1.19.0
-    container_name: jupyter
-    ports:
-      - "8888:8888"
-    volumes:
-      - ./jobs:/home/jovyan/jobs
-      - ./jobs:/opt/flink/usrlib
-      - hadoop_etc:/opt/hadoop/etc/hadoop
-      - hadoop_libs:/opt/hadoop/share/hadoop 
-      - ./jobs/flink-shaded-hadoop-3-uber-3.1.1.7.2.8.0-224-9.0.jar:/opt/flink/lib/flink-shaded-hadoop-3-uber-3.1.1.7.2.8.0-224-9.0.jar
-      - ./flink-conf/config.yaml:/opt/flink/conf/config.yaml
-      - ./jobs/flink-connector-files-1.19.0.jar:/opt/flink/lib/flink-connector-files-1.19.0.jar  
-    environment:
-      - HADOOP_CONF_DIR=/opt/hadoop/etc/hadoop  
-      - FLINK_CLASSPATH=/opt/hadoop/share/hadoop/common/*:/opt/hadoop/share/hadoop/hdfs/*:/opt/flink/lib/flink-connector-files-1.19.0.jar:/opt/flink/lib/flink-shaded-hadoop-3-uber-3.1.1.7.2.8.0-224-9.0.jar 
-      - HADOOP_CLASSPATH=$(find /opt/hadoop/share/hadoop -name '*.jar' | tr '\n' ':')$(find /opt/flink/lib -name '*.jar' | tr '\n' ':')
-    depends_on:
-      - jobmanager
-
+  
   # Hadoop Namenode
   namenode:
     image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
