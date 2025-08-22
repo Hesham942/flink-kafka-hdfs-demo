@@ -2,6 +2,9 @@
 
 This project demonstrates a data pipeline that reads from a Kafka topic, processes the data with Apache Flink, and writes the output to HDFS. The entire environment is orchestrated using Docker Compose.
 
+### Project Architecture
+[cite_start]![Project Architecture](./images/pipeline.png) [cite: 1]
+
 ---
 
 ## Configuration ⚙️
@@ -56,7 +59,8 @@ Before running the project, you must download the required Flink connector JAR f
     ```
 4.  **Monitor the job in the Flink UI.** You can watch the job's progress at **http://localhost:8081**. The dashboard will look like this as it runs:
     
-    
+    ![Flink Dashboard](./images/FLINK.png)
+
 ---
 
 ## Verifying the Output ✅
