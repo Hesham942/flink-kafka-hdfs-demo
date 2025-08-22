@@ -3,7 +3,7 @@
 This project demonstrates a data pipeline that reads from a Kafka topic, processes the data with Apache Flink, and writes the output to HDFS. The entire environment is orchestrated using Docker Compose.
 
 ### Project Architecture
-[cite_start]![Project Architecture](./images/pipeline.png) [cite: 1]
+![Project Architecture](./images/pipeline.png)
 
 ---
 
